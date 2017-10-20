@@ -1,0 +1,299 @@
+MiNiFi Config Version: 3
+Flow Controller:
+  name: tx1-minifi
+  comment: ''
+Core Properties:
+  flow controller graceful shutdown period: 10 sec
+  flow service write delay interval: 500 ms
+  administrative yield duration: 30 sec
+  bored yield duration: 10 millis
+  max concurrent threads: 1
+  variable registry properties: ''
+FlowFile Repository:
+  partitions: 256
+  checkpoint interval: 2 mins
+  always sync: false
+  Swap:
+    threshold: 20000
+    in period: 5 sec
+    in threads: 1
+    out period: 5 sec
+    out threads: 4
+Content Repository:
+  content claim max appendable size: 10 MB
+  content claim max flow files: 100
+  always sync: false
+Provenance Repository:
+  provenance rollover time: 1 min
+Component Status Repository:
+  buffer size: 1440
+  snapshot frequency: 1 min
+Security Properties:
+  keystore: ''
+  keystore type: ''
+  keystore password: ''
+  key password: ''
+  truststore: ''
+  truststore type: ''
+  truststore password: ''
+  ssl protocol: ''
+  Sensitive Props:
+    key:
+    algorithm: PBEWITHMD5AND256BITAES-CBC-OPENSSL
+    provider: BC
+Processors:
+- id: c216f845-1839-3f3c-0000-000000000000
+  name: Capture Photo and MXClassify
+  class: org.apache.nifi.processors.standard.ExecuteProcess
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 60 sec
+  penalization period: 30 sec
+  yield period: 1 sec
+  run duration nanos: 0
+  auto-terminated relationships list: []
+  Properties:
+    Argument Delimiter: ' '
+    Batch Duration:
+    Command: /media/nvidia/96ed93f9-7c40-4999-85ba-3eb24262d0a5/mxclassify.sh
+    Command Arguments:
+    Redirect Error Stream: 'false'
+- id: 3269f151-5dca-3e09-0000-000000000000
+  name: FetchFile
+  class: org.apache.nifi.processors.standard.FetchFile
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 0 sec
+  penalization period: 30 sec
+  yield period: 1 sec
+  run duration nanos: 0
+  auto-terminated relationships list: []
+  Properties:
+    Completion Strategy: None
+    File to Fetch: ${absolute.path}/${filename}
+    Log level when file not found: ERROR
+    Log level when permission denied: ERROR
+    Move Conflict Strategy: Rename
+    Move Destination Directory:
+- id: eea4a987-50de-3264-0000-000000000000
+  name: ListFile
+  class: org.apache.nifi.processors.standard.ListFile
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 180 sec
+  penalization period: 30 sec
+  yield period: 1 sec
+  run duration nanos: 0
+  auto-terminated relationships list: []
+  Properties:
+    File Filter: '[^\.].*'
+    Ignore Hidden Files: 'false'
+    Input Directory: /media/nvidia/96ed93f9-7c40-4999-85ba-3eb24262d0a5/images
+    Input Directory Location: Local
+    Maximum File Age:
+    Maximum File Size:
+    Minimum File Age: 15 sec
+    Minimum File Size: 20 B
+    Path Filter:
+    Recurse Subdirectories: 'true'
+- id: be44dad4-5ad5-3919-0000-000000000000
+  name: Run TensorRT Classify Image
+  class: org.apache.nifi.processors.standard.ExecuteStreamCommand
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 0 sec
+  penalization period: 30 sec
+  yield period: 1 sec
+  run duration nanos: 0
+  auto-terminated relationships list:
+  - original
+  Properties:
+    Argument Delimiter: ;
+    Command Arguments: ${filename}
+    Command Path: /media/nvidia/96ed93f9-7c40-4999-85ba-3eb24262d0a5/jetson-inference-master/build/aarch64/bin/runclassify.sh
+    Ignore STDIN: 'false'
+    Max Attribute Length: '4096'
+    Output Destination Attribute:
+    Working Directory: /media/nvidia/96ed93f9-7c40-4999-85ba-3eb24262d0a5/jetson-inference-master/build/aarch64/bin
+- id: e029b4cc-cdf4-3726-0000-000000000000
+  name: Run TensorRT FaceDetect
+  class: org.apache.nifi.processors.standard.ExecuteStreamCommand
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 0 sec
+  penalization period: 30 sec
+  yield period: 1 sec
+  run duration nanos: 0
+  auto-terminated relationships list:
+  - original
+  Properties:
+    Argument Delimiter: ;
+    Command Arguments: ${filename}
+    Command Path: /media/nvidia/96ed93f9-7c40-4999-85ba-3eb24262d0a5/jetson-inference-master/build/aarch64/bin/facedetect.sh
+    Ignore STDIN: 'false'
+    Max Attribute Length: '4096'
+    Output Destination Attribute:
+    Working Directory: /media/nvidia/96ed93f9-7c40-4999-85ba-3eb24262d0a5/jetson-inference-master/build/aarch64/bin
+- id: 8bfb99e6-8f8d-3d44-0000-000000000000
+  name: Store Failures
+  class: org.apache.nifi.processors.standard.PutFile
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 0 sec
+  penalization period: 30 sec
+  yield period: 1 sec
+  run duration nanos: 0
+  auto-terminated relationships list:
+  - failure
+  - success
+  Properties:
+    Conflict Resolution Strategy: replace
+    Create Missing Directories: 'true'
+    Directory: /media/nvidia/96ed93f9-7c40-4999-85ba-3eb24262d0a5/logs
+    Group:
+    Last Modified Time:
+    Maximum File Count:
+    Owner:
+    Permissions:
+- id: 3ccc505a-d4ef-3f13-0000-000000000000
+  name: TensorFlowProcessor
+  class: com.dataflowdeveloper.processors.process.TensorFlowProcessor
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 0 sec
+  penalization period: 30 sec
+  yield period: 1 sec
+  run duration nanos: 0
+  auto-terminated relationships list: []
+  Properties:
+    imgpath: ${absolute.path}/${filename}
+    modeldir: /media/nvidia/96ed93f9-7c40-4999-85ba-3eb24262d0a5/nifi-tensorflow-processors/models
+Controller Services: []
+Process Groups: []
+Input Ports: []
+Output Ports: []
+Funnels: []
+Connections:
+- id: ce8f3f75-6282-3f46-0000-000000000000
+  name: Capture Photo and MXClassify/success/2052b349-015f-1000-61ea-dcf6634863af
+  source id: c216f845-1839-3f3c-0000-000000000000
+  source relationship names:
+  - success
+  destination id: 2052b349-015f-1000-61ea-dcf6634863af
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: 2538946a-c691-353c-0000-000000000000
+  name: FetchFile/failure/Store Failures
+  source id: 3269f151-5dca-3e09-0000-000000000000
+  source relationship names:
+  - failure
+  - not.found
+  - permission.denied
+  destination id: 8bfb99e6-8f8d-3d44-0000-000000000000
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: 47371bb4-e0d0-3215-0000-000000000000
+  name: FetchFile/success/Run TensorRT Classify Image
+  source id: 3269f151-5dca-3e09-0000-000000000000
+  source relationship names:
+  - success
+  destination id: be44dad4-5ad5-3919-0000-000000000000
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: b535a461-be8e-305a-0000-000000000000
+  name: FetchFile/success/Run TensorRT FaceDetect
+  source id: 3269f151-5dca-3e09-0000-000000000000
+  source relationship names:
+  - success
+  destination id: e029b4cc-cdf4-3726-0000-000000000000
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: 6979f38c-c116-302c-0000-000000000000
+  name: FetchFile/success/TensorFlowProcessor
+  source id: 3269f151-5dca-3e09-0000-000000000000
+  source relationship names:
+  - success
+  destination id: 3ccc505a-d4ef-3f13-0000-000000000000
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: eb77b50f-bf34-3bc6-0000-000000000000
+  name: ListFile/success/FetchFile
+  source id: eea4a987-50de-3264-0000-000000000000
+  source relationship names:
+  - success
+  destination id: 3269f151-5dca-3e09-0000-000000000000
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: 2432857e-b896-3117-0000-000000000000
+  name: Run TensorRT Classify Image/output stream/2052b349-015f-1000-61ea-dcf6634863af
+  source id: be44dad4-5ad5-3919-0000-000000000000
+  source relationship names:
+  - output stream
+  destination id: 2052b349-015f-1000-61ea-dcf6634863af
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: d0deb0a9-3508-306d-0000-000000000000
+  name: Run TensorRT FaceDetect/output stream/2052b349-015f-1000-61ea-dcf6634863af
+  source id: e029b4cc-cdf4-3726-0000-000000000000
+  source relationship names:
+  - output stream
+  destination id: 2052b349-015f-1000-61ea-dcf6634863af
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: ff564cb3-84a5-3ae0-0000-000000000000
+  name: TensorFlowProcessor/failure/Store Failures
+  source id: 3ccc505a-d4ef-3f13-0000-000000000000
+  source relationship names:
+  - failure
+  destination id: 8bfb99e6-8f8d-3d44-0000-000000000000
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+- id: 4b033e14-9a01-3928-0000-000000000000
+  name: TensorFlowProcessor/success/2052b349-015f-1000-61ea-dcf6634863af
+  source id: 3ccc505a-d4ef-3f13-0000-000000000000
+  source relationship names:
+  - success
+  destination id: 2052b349-015f-1000-61ea-dcf6634863af
+  max work queue size: 10000
+  max work queue data size: 1 GB
+  flowfile expiration: 0 sec
+  queue prioritizer class: ''
+Remote Process Groups:
+- id: 6e6ff0c6-859d-3180-0000-000000000000
+  name: ''
+  url: http://hw13125.local:8080/nifi
+  comment: ''
+  timeout: 60 sec
+  yield period: 10 sec
+  transport protocol: HTTP
+  proxy host: ''
+  proxy port: ''
+  proxy user: ''
+  proxy password: ''
+  local network interface: ''
+  Input Ports:
+  - id: 2052b349-015f-1000-61ea-dcf6634863af
+    name: MiniFi From TX1 Jetson
+    comment: ''
+    max concurrent tasks: 1
+    use compression: false
+  Output Ports: []
+NiFi Properties Overrides: {}
